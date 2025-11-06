@@ -46,7 +46,7 @@ pip install -r requirements.txt
 python ~~\get_python_api.py
 ```
 
-4. CUDAのインストール
+4. CUDAのインストール  
 [CUDA Toolkit 12.8](https://developer.nvidia.com/cuda-12-8-0-download-archive?target_os=Windows&target_arch=x86_64&target_version=11&target_type=exe_local)を開き、`cuda_12.8.x_xxx.exe`をダウンロードしてください。
 ダウンロードした`cuda_12.8.x_xxx.exe`を管理者権限で実行し、指示に従ってインストールしてください。
 
