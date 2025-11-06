@@ -11,8 +11,8 @@ height = 720
 use_api = cv2.CAP_DSHOW             # Windowsで使用する場合こちらを使う
 # use_api = 0                       # Linuxで使用する場合はこちらを使う
 use_zed = True                      # ZEDカメラを使用するかどうか
-# udp_info = ("133.15.35.65", 12345)  # C3-502 5GHz(ip, port)
-udp_info = ("127.0.0.1", 12345)     # ローカル(ip, port)
+udp_info = ("133.15.35.65", 12345)  # C3-502 5GHz(ip, port)
+# udp_info = ("127.0.0.1", 12345)     # ローカル(ip, port)
 marker_size = 9.3                   # マーカーのサイズ(cm)
 
 # アプリケーション設定
