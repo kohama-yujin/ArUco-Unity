@@ -115,34 +115,31 @@ class UDPSender:
             self.sock.sendto(pkt, (self.target_ip, self.target_port))
     
 
-    def send_init_params(self, cam_shift, vfov):
+    def send_init_params(self, vfov):
         """
         カメラ初期パラメータをUDP送信する関数
         
         Parameters
-            cam_shift (np.ndarray): カメラ座標軸のシフト行列 (3x3)
             vfov (float): 垂直視野角 (度)
         """
-        # UDP送信用にfloat32に変換
-        data = np.hstack((cam_shift.flatten(), vfov)).astype(np.float32)
-        # 44byte = format(4byte) + data(4byte * 10)
-        pkt = struct.pack("!I10f", self.INIT_PARAMS, *data)
+        # 8byte = format(4byte) + vfov(4byte)
+        pkt = struct.pack("!If", self.INIT_PARAMS, np.float32(vfov))
         # 確実に届くように5回送信
         for _ in range(5):
             self.sock.sendto(pkt, (self.target_ip, self.target_port))
             time.sleep(0.1)
 
 
-    def send_extrinsic_parameters(self, R_cam, t_cam):
+    def send_camera_pose(self, cam_rotation, cam_position):
         """
-        カメラの外部パラメータをUDP送信する関数
+        カメラの位置姿勢をUDP送信する関数
 
         Parameters
-            R_cam (np.ndarray): 回転行列 (3x3)
-            t_cam (np.ndarray): 並進ベクトル (3,)
+            cam_rotation (np.ndarray): 回転行列 (3x3)
+            cam_position (np.ndarray): 並進ベクトル (3,)
         """
         # UDP送信用にfloat32に変換
-        data = np.hstack((R_cam.flatten(), t_cam.flatten())).astype(np.float32)
+        data = np.hstack((cam_rotation.flatten(), cam_position.flatten())).astype(np.float32)
         # 52byte = format(4byte) + data(4byte * 12)
         pkt = struct.pack("!I12f", self.EXTRINSIC, *data)
         self.sock.sendto(pkt, (self.target_ip, self.target_port))

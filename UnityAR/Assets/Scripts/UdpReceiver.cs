@@ -31,10 +31,6 @@ public class UdpReceiver : MonoBehaviour
 
     // 垂直視野角
     private float latestVerticalFov = 0f;
-    // Unityの座標系
-    private Matrix4x4 worldShift = new Matrix4x4();
-    // PythonからUnityへの変換行列
-    private Matrix4x4 ConvertPyToUnity = Matrix4x4.identity;
 
     // 最新のカメラ位置
     private Vector3 latestCameraPos = Vector3.zero;
@@ -64,11 +60,6 @@ public class UdpReceiver : MonoBehaviour
         {
             Debug.LogError("targetCamera が設定されていません。");
         }
-        
-        worldShift.SetRow(0, new Vector4(0f, 1f, 0f, 0f));
-        worldShift.SetRow(1, new Vector4(0f, 0f, 1f, 0f));
-        worldShift.SetRow(2, new Vector4(-1f, 0f, 0f, 0f));
-        worldShift.SetRow(3, new Vector4(0f, 0f, 0f, 1f));
 
         Debug.Log($"UdpReceiver: listening on port {listenPort}");
     }
@@ -94,7 +85,7 @@ public class UdpReceiver : MonoBehaviour
                 if (firstPacket == null || firstPacket.Length == 0) continue;
 
                 // バイト数でフォーマットを判定
-                if (firstPacket.Length == 12 || firstPacket.Length == 44 || firstPacket.Length == 52)
+                if (firstPacket.Length == 8 || firstPacket.Length == 12 || firstPacket.Length == 52)
                 {
                     // Big-endian形式
                     uint format = EndianConverter.ReadUInt32BE(firstPacket, 0);
@@ -197,24 +188,11 @@ public class UdpReceiver : MonoBehaviour
                     }
                     else if (format == 2)
                     {
-                        // カメラの初期パラメータ（座標軸と垂直視野角）
-                        float[] values = new float[9];
-                        for (int i = 0; i < 9; i++)
-                            values[i] = EndianConverter.ReadFloatBE(firstPacket, 4 + i * 4);
-
-                        // カメラの座標軸
-                        Matrix4x4 camShift = Matrix4x4.identity;
-                        camShift.m00 = values[0]; camShift.m01 = values[1]; camShift.m02 = values[2];
-                        camShift.m10 = values[3]; camShift.m11 = values[4]; camShift.m12 = values[5];
-                        camShift.m20 = values[6]; camShift.m21 = values[7]; camShift.m22 = values[8];
-
-                        // 座標系の変換行列
-                        ConvertPyToUnity = worldShift * camShift;
-
+                        // カメラの初期パラメータ（垂直視野角）
                         lock (lockObj)
                         {
                             // 垂直視野角
-                            latestVerticalFov = EndianConverter.ReadFloatBE(firstPacket, 40);
+                            latestVerticalFov = EndianConverter.ReadFloatBE(firstPacket, 4);
                         }
                     }
                     else if (format == 3)
@@ -224,36 +202,23 @@ public class UdpReceiver : MonoBehaviour
                         for (int i = 0; i < 12; i++)
                             values[i] = EndianConverter.ReadFloatBE(firstPacket, 4 + i * 4);
 
-                        // 回転行列
-                        Matrix4x4 R_cam = Matrix4x4.identity;
-                        R_cam.m00 = values[0]; R_cam.m01 = values[1]; R_cam.m02 = values[2];
-                        R_cam.m10 = values[3]; R_cam.m11 = values[4]; R_cam.m12 = values[5];
-                        R_cam.m20 = values[6]; R_cam.m21 = values[7]; R_cam.m22 = values[8];
+                        // 姿勢
+                        Matrix4x4 R = Matrix4x4.identity;
+                        R.m00 = values[0]; R.m01 = values[1]; R.m02 = values[2];
+                        R.m10 = values[3]; R.m11 = values[4]; R.m12 = values[5];
+                        R.m20 = values[6]; R.m21 = values[7]; R.m22 = values[8];
 
                         // 位置
-                        Vector3 t_cam = new Vector3(
+                        Vector3 t = new Vector3(
                             values[9] / 100,
                             values[10] / 100,
                             values[11] / 100
                         );
 
-                        // 世界座標系への変換
-                        Matrix4x4 R_world = R_cam.transpose;
-                        Vector3 t_world = -R_world.MultiplyPoint3x4(t_cam);
-
-                        // カメラ座標系をUnity座標系に変換
-                        Matrix4x4 R_world_converted = ConvertPyToUnity * R_world * ConvertPyToUnity.transpose;
-                        Vector3 t_world_converted = ConvertPyToUnity.MultiplyPoint3x4(t_world);
-
-                        // カメラの向き補正
-                        Quaternion q = R_world_converted.rotation;
-                        Quaternion correction = Quaternion.Euler(-90f, 0f, -180f);
-                        q = q * correction;
-                        
                         lock (lockObj)
                         {
-                            latestCameraRot = q;
-                            latestCameraPos = t_world_converted;
+                            latestCameraRot = R.rotation;
+                            latestCameraPos = t;
                         }
                     }
                     else

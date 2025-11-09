@@ -30,17 +30,17 @@ class PoseEstimation:
     def compute_camera_pose(self, point_2D):
         if self.ready:
             self.point_2D = point_2D
-            success, vec_R, t = cv2.solvePnP(
+            success, vec_R, t_w2c_cv = cv2.solvePnP(
                 self.point_3D, self.point_2D, self.A, self.dist_coeff, flags=0
             )
-            R = cv2.Rodrigues(vec_R)[0]
+            R_w2c_cv = cv2.Rodrigues(vec_R)[0]
 
             # OpenGLの座標系に変換する回転行列
-            R_ = np.array([[1.0, 0.0, 0.0], [0.0, -1.0, 0.0], [0.0, 0.0, -1.0]])
-            R = np.dot(R_, R)
-            t = np.dot(R_, t)
+            R_cv2gl = np.array([[1.0, 0.0, 0.0], [0.0, -1.0, 0.0], [0.0, 0.0, -1.0]])
+            R_w2c_gl = np.dot(R_cv2gl, R_w2c_cv)
+            t_w2c_gl = np.dot(R_cv2gl, t_w2c_cv)
 
-            return True, R, t
+            return True, R_w2c_gl, t_w2c_gl
         else:
             return False, None, None
 

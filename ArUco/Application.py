@@ -43,30 +43,25 @@ class Application:
             else:
                 self.camera = cam.USBCamera(deviceID, width, height, use_api)
 
+        # カメラの内部パラメータ
+        self.focus = 700.0
+        if self.camera.focus:
+            self.focus = self.camera.focus
+        self.u0 = width / 2.0
+        self.v0 = height / 2.0
+
         # UDP通信の設定
         ip, port = udp_info
         self.udp = udp.UDPSender(ip, port)
-        
-        # カメラ座標軸（rpyが基準）
-        self.cam_shift = np.array([
-            [0, -1, 0], # camera X = -pitch
-            [-1, 0, 0], # camera Y = -roll
-            [0, 0, -1]  # camera Z = -yaw
-        ])
 
         # カメラ姿勢推定用変数
-        self.R_cam = np.eye(3)  # 3x3単位行列として初期化
-        self.t_cam = np.zeros(3)  # 3次元ベクトルとして初期化
+        self.R_w2c_gl = np.eye(3)  # 3x3単位行列として初期化
+        self.t_w2c_gl = np.zeros(3)  # 3次元ベクトルとして初期化
 
         # GLウィンドウの設定
         self.glwindow = GLWindow.GLWindow(
             title, width, height, self.display_func, self.keyboard_func
         )
-
-        # カメラの内部パラメータ
-        self.focus = 700.0
-        self.u0 = width / 2.0
-        self.v0 = height / 2.0
 
         # OpenGLの表示パラメータ
         scale = 0.01
@@ -141,7 +136,10 @@ class Application:
     # ------------------------------------------------------------------------
     def init_udp_sender(self):
         # カメラの視野角と座標系を送信
-        self.udp.send_init_params(self.cam_shift, self.camera.vfov)
+        self.vfov = 60.0
+        if self.camera.vfov:
+            self.vfov = self.camera.vfov
+        self.udp.send_init_params(self.vfov)
 
     # ------------------------------------------------------------------------
     # UDP送信する関数
@@ -151,8 +149,24 @@ class Application:
         send_frame = cv2.cvtColor(self.image, cv2.COLOR_RGB2BGR)
         frame_data = self.udp.to_bytes(send_frame, quality=70)
         self.udp.send_frame(frame_data, frame_id)
+
         # カメラの外部パラメータを送信
-        self.udp.send_extrinsic_parameters(self.R_cam, self.t_cam)
+
+        # OpenGL -> Unity (カメラ座標系)
+        R_gl2unity = np.array([[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, -1.0]])
+        R_w2c_unity = R_gl2unity @ self.R_w2c_gl
+        t_w2c_unity = R_gl2unity @ self.t_w2c_gl
+
+        # camera -> World (Roll, Pitch, Yaw)
+        R_c2w_rpy = R_w2c_unity.T
+        t_c2w_rpy = -R_c2w_rpy @ t_w2c_unity
+
+        # Roll, Pitch, Yaw -> Unity (世界座標系)
+        R_rpy2unity = np.array([[0.0, 1.0, 0.0], [0.0, 0.0, 1.0], [-1.0, 0.0, 0.0]])
+        R_c2w_unity = R_rpy2unity @ R_c2w_rpy
+        t_c2w_unity = R_rpy2unity @ t_c2w_rpy
+
+        self.udp.send_camera_pose(R_c2w_unity, t_c2w_unity)
 
     # ------------------------------------------------------------------------
     # キー関数
@@ -232,33 +246,33 @@ class Application:
         point_2D = np.array([(x1, y1), (x2, y2), (x3, y3), (x4, y4)], dtype="double")
 
         # カメラ姿勢を計算
-        success, self.R_cam, self.t_cam = self.estimator.compute_camera_pose(point_2D)
+        success, self.R_w2c_gl, self.t_w2c_gl = self.estimator.compute_camera_pose(point_2D)
 
         if success:
             # この位置を照明位置として使用
-            # 世界座標系に対するカメラ位置を計算
-            R_world = self.R_cam.T
-            t_world = -R_world @ self.t_cam
             if self.use_normal:
+                # 世界座標系に対するカメラ位置を計算
+                R_world = self.R_w2c_gl.T
+                t_world = -R_world @ self.t_w2c_gl
                 self.light_pos = np.array(
                     [t_world[0], t_world[1], t_world[2], 1.0], dtype="double"
                 )
             # OpenGLで使用するモデルビュー行列を生成
-            self.modelview[0] = self.R_cam[0][0]
-            self.modelview[1] = self.R_cam[1][0]
-            self.modelview[2] = self.R_cam[2][0]
+            self.modelview[0] = self.R_w2c_gl[0][0]
+            self.modelview[1] = self.R_w2c_gl[1][0]
+            self.modelview[2] = self.R_w2c_gl[2][0]
             self.modelview[3] = 0.0
-            self.modelview[4] = self.R_cam[0][1]
-            self.modelview[5] = self.R_cam[1][1]
-            self.modelview[6] = self.R_cam[2][1]
+            self.modelview[4] = self.R_w2c_gl[0][1]
+            self.modelview[5] = self.R_w2c_gl[1][1]
+            self.modelview[6] = self.R_w2c_gl[2][1]
             self.modelview[7] = 0.0
-            self.modelview[8] = self.R_cam[0][2]
-            self.modelview[9] = self.R_cam[1][2]
-            self.modelview[10] = self.R_cam[2][2]
+            self.modelview[8] = self.R_w2c_gl[0][2]
+            self.modelview[9] = self.R_w2c_gl[1][2]
+            self.modelview[10] = self.R_w2c_gl[2][2]
             self.modelview[11] = 0.0
-            self.modelview[12] = self.t_cam[0]
-            self.modelview[13] = self.t_cam[1]
-            self.modelview[14] = self.t_cam[2]
+            self.modelview[12] = self.t_w2c_gl[0]
+            self.modelview[13] = self.t_w2c_gl[1]
+            self.modelview[14] = self.t_w2c_gl[2]
             self.modelview[15] = 1.0
 
         return success

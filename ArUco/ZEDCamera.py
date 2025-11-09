@@ -70,6 +70,7 @@ class ZEDCamera:
         left_cam_params = cam_config.calibration_parameters.left_cam
         self.vfov = left_cam_params.v_fov
         self.hfov = left_cam_params.h_fov
+        self.focus = left_cam_params.fx
 
         # 画像取得のためのオブジェクト
         self.image_obj = sl.Mat()
