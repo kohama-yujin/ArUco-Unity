@@ -45,16 +45,16 @@ while not app.glwindow.window_should_close():
     app.display_func(app.glwindow.window)
 
     # 以下、ボックスの開閉
-    if model.meshes[0].vertices[8].z <= -20 and model.meshes[0].vertices[9].z <= -20:
-        close = True
-    if model.meshes[0].vertices[8].z >= -15 and model.meshes[0].vertices[9].z >= -15:
-        close = False
-    if close:
-        model.meshes[0].vertices[8].z += 0.1
-        model.meshes[0].vertices[9].z += 0.1
-    else:
+    if model.meshes[0].vertices[8].z >= 20 and model.meshes[0].vertices[9].z >= 20:
+        closing = True
+    if model.meshes[0].vertices[8].z <= 15 and model.meshes[0].vertices[9].z <= 15:
+        closing = False
+    if closing:
         model.meshes[0].vertices[8].z -= 0.1
         model.meshes[0].vertices[9].z -= 0.1
+    else:
+        model.meshes[0].vertices[8].z += 0.1
+        model.meshes[0].vertices[9].z += 0.1
 
     app.udp_sender(frame_id)
     frame_id = (frame_id + 1) & 0xFFFFFFFF  # フレームIDをインクリメント（32bitでロールオーバー）
